@@ -1,4 +1,3 @@
-
 /**
  * Lightweight Supabase REST client (no SDK, no extra deps).
  *
@@ -37,11 +36,13 @@ export function hasOwnerWriteKey(): boolean {
 }
 
 type FetchOpts = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'HEAD';
   path: string;                // e.g. "posts?select=*"
   body?: unknown;
   asOwner?: boolean;           // include x-owner-key
   prefer?: string;             // e.g. "return=representation"
+  /** When true, returns the raw Response so callers can read headers */
+  rawResponse?: boolean;
 };
 
 async function sbFetch<T = any>(opts: FetchOpts): Promise<T> {
@@ -69,6 +70,8 @@ async function sbFetch<T = any>(opts: FetchOpts): Promise<T> {
     throw new Error(`Supabase ${res.status}: ${text || res.statusText}`);
   }
 
+  if (opts.rawResponse) return res as unknown as T;
+
   // 204 = no content
   if (res.status === 204) return undefined as T;
   const ct = res.headers.get('content-type') || '';
@@ -86,6 +89,27 @@ export const supa = {
       asOwner,
       prefer: 'return=representation',
     }),
+  /**
+   * Insert that tolerates uniqueness-violation conflicts (returns null
+   * instead of throwing). Useful for idempotent actions like hearting.
+   */
+  insertIgnoreConflict: async <T = any>(
+    table: string,
+    row: unknown
+  ): Promise<T[] | null> => {
+    try {
+      return await sbFetch<T[]>({
+        method: 'POST',
+        path: table,
+        body: row,
+        prefer: 'return=representation,resolution=ignore-duplicates',
+      });
+    } catch (e: any) {
+      // 409 conflict → row already exists, that's fine for idempotency
+      if (String(e?.message || '').includes('409')) return null;
+      throw e;
+    }
+  },
   update: <T = any>(path: string, patch: unknown, asOwner = false) =>
     sbFetch<T[]>({
       method: 'PATCH',
@@ -96,4 +120,33 @@ export const supa = {
     }),
   remove: (path: string, asOwner = false) =>
     sbFetch<void>({ method: 'DELETE', path, asOwner }),
+  /**
+   * Return an exact count of matching rows. Uses PostgREST's
+   * `Prefer: count=exact` + `Range: 0-0` to fetch just the header.
+   * This is the most reliable way to get a real-time count without
+   * depending on triggers or cached materialized columns.
+   */
+  count: async (path: string): Promise<number> => {
+    if (!isRemoteEnabled()) throw new Error('Supabase is not configured.');
+    const sep = path.includes('?') ? '&' : '?';
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}${sep}select=id`, {
+      method: 'GET',
+      headers: {
+        apikey: ANON_KEY!,
+        Authorization: `Bearer ${ANON_KEY!}`,
+        Prefer: 'count=exact',
+        Range: '0-0',
+        'Range-Unit': 'items',
+      },
+    });
+    if (!res.ok && res.status !== 206) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Supabase ${res.status}: ${text || res.statusText}`);
+    }
+    // Content-Range header looks like "0-0/42" or "*/0"
+    const cr = res.headers.get('content-range') || '';
+    const total = cr.split('/')[1];
+    const n = parseInt(total || '0', 10);
+    return isNaN(n) ? 0 : n;
+  },
 };
