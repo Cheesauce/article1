@@ -177,7 +177,7 @@ type PostRow = {
   updated_at: string;
 };
 
-function rowToPost(r: PostRow): Post {
+function rowToPost(r: PostRow, heartsOverride?: number): Post {
   return {
     id: r.id,
     title: r.title,
@@ -187,7 +187,12 @@ function rowToPost(r: PostRow): Post {
     published: !!r.published,
     replyToId: r.reply_to_id,
     aiModel: r.ai_model,
-    hearts: typeof r.hearts === 'number' ? r.hearts : 0,
+    hearts:
+      typeof heartsOverride === 'number'
+        ? heartsOverride
+        : typeof r.hearts === 'number'
+        ? r.hearts
+        : 0,
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
     updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
   };
@@ -216,9 +221,46 @@ export function PostsProvider({ children }: { children: React.ReactNode }) {
   const remote = isRemoteEnabled();
   const visitorIdRef = useRef<string | null>(null);
 
+  /**
+   * Counts hearts for every post by grouping rows in the hearts table.
+   * This is the source of truth — we stopped depending on `posts.hearts`
+   * (which relied on a trigger that, per user report, was not keeping
+   * the count in sync). A direct count is boring, correct, and fast
+   * thanks to the `hearts_post_idx` index.
+   */
+  const fetchHeartCounts = useCallback(
+    async (postIds: string[]): Promise<Record<string, number>> => {
+      const counts: Record<string, number> = {};
+      if (postIds.length === 0) return counts;
+      // Fetch all heart rows whose post_id is in our set, then tally.
+      // Even with 10k hearts this is a single cheap query.
+      const idList = postIds.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(',');
+      const rows = await supa.select<{ post_id: string }>(
+        `hearts?select=post_id&post_id=in.(${encodeURIComponent(idList)})`
+      );
+      rows.forEach((r) => {
+        counts[r.post_id] = (counts[r.post_id] || 0) + 1;
+      });
+      return counts;
+    },
+    []
+  );
+
   const loadFromSupabase = useCallback(async () => {
     const rows = await supa.select<PostRow>('posts?select=*&order=created_at.desc');
-    const list = (rows || []).map(rowToPost);
+    const ids = (rows || []).map((r) => r.id);
+
+    // Authoritative heart counts straight from the hearts table
+    let counts: Record<string, number> = {};
+    try {
+      counts = await fetchHeartCounts(ids);
+    } catch (e) {
+      console.warn('fetchHeartCounts failed, falling back to posts.hearts', e);
+    }
+
+    const list = (rows || []).map((r) =>
+      rowToPost(r, counts[r.id] !== undefined ? counts[r.id] : r.hearts)
+    );
 
     // Fetch this visitor's hearts so we can highlight them
     try {
@@ -236,7 +278,7 @@ export function PostsProvider({ children }: { children: React.ReactNode }) {
     }
 
     return list;
-  }, []);
+  }, [fetchHeartCounts]);
 
   const loadFromLocal = useCallback(async (): Promise<Post[]> => {
     const raw = await persistence.getItem(POSTS_KEY);
@@ -341,7 +383,7 @@ export function PostsProvider({ children }: { children: React.ReactNode }) {
         { ...postToRow(post), id, hearts: 0 },
         true
       );
-      const created = inserted?.[0] ? rowToPost(inserted[0]) : post;
+      const created = inserted?.[0] ? rowToPost(inserted[0], 0) : post;
       setPosts((prev) => [created, ...prev.filter((x) => x.id !== created.id)]);
       return created;
     }
@@ -361,7 +403,11 @@ export function PostsProvider({ children }: { children: React.ReactNode }) {
         true
       );
       if (updated?.[0]) {
-        const p = rowToPost(updated[0]);
+        // Preserve the live heart count we already have in state,
+        // since PATCH returns whatever's in posts.hearts (which we no
+        // longer trust as the source of truth).
+        const current = posts.find((x) => x.id === id);
+        const p = rowToPost(updated[0], current?.hearts);
         setPosts((prev) => prev.map((x) => (x.id === id ? p : x)));
       }
       return;
@@ -407,19 +453,24 @@ export function PostsProvider({ children }: { children: React.ReactNode }) {
             `hearts?post_id=eq.${encodeURIComponent(id)}&visitor_id=eq.${encodeURIComponent(vid)}`
           );
         } else {
-          await supa.insert('hearts', { post_id: id, visitor_id: vid });
+          // Idempotent insert — if this visitor already hearted (e.g. a
+          // duplicate tap race), the unique constraint would normally
+          // throw. We swallow that 409 and treat it as success.
+          await supa.insertIgnoreConflict('hearts', { post_id: id, visitor_id: vid });
         }
-        // Re-fetch the authoritative heart count for this post
+
+        // Re-count this post's hearts directly from the hearts table.
+        // This is the fix for "heart count always goes back to 0" —
+        // we no longer trust the denormalized posts.hearts column.
         try {
-          const fresh = await supa.select<PostRow>(
-            `posts?select=*&id=eq.${encodeURIComponent(id)}`
+          const n = await supa.count(
+            `hearts?post_id=eq.${encodeURIComponent(id)}`
           );
-          if (fresh?.[0]) {
-            const p = rowToPost(fresh[0]);
-            setPosts((list) => list.map((x) => (x.id === id ? { ...x, hearts: p.hearts } : x)));
-          }
-        } catch {
-          /* ignore */
+          setPosts((list) =>
+            list.map((x) => (x.id === id ? { ...x, hearts: n } : x))
+          );
+        } catch (err) {
+          console.warn('Heart count refetch failed', err);
         }
       } catch (e) {
         console.error('toggleHeart failed, rolling back', e);
