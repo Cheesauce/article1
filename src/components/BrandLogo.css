@@ -1,0 +1,42 @@
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+}
+
+.brand-mark-svg {
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.08));
+  transition: transform 0.2s ease;
+}
+.brand-logo:hover .brand-mark-svg {
+  transform: rotate(-6deg) scale(1.04);
+}
+
+.brand-wordmark {
+  display: flex;
+  flex-direction: column;
+  line-height: 0.95;
+  font-family: 'Fraunces', serif;
+}
+.brand-word-top {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  font-family: 'Inter', sans-serif;
+}
+.brand-word-bot {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+@media (max-width: 520px) {
+  .brand-word-top { font-size: 10px; }
+  .brand-word-bot { font-size: 18px; }
+}

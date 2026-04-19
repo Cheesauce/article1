@@ -1,0 +1,119 @@
+
+.conviction-badge {
+  display: inline-grid;
+  grid-template-columns: auto 90px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid;
+  background: var(--surface);
+  font-size: 12px;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.cb-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
+}
+.cb-label-text {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.cb-band-text {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin-top: 1px;
+}
+
+.cb-meter {
+  height: 5px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.cb-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.cb-number {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: 'Fraunces', serif;
+  gap: 1px;
+}
+.cb-n {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.cb-total {
+  font-size: 10px;
+  opacity: 0.6;
+  font-weight: 600;
+}
+
+/* Bands */
+.conviction-badge.cb-none {
+  color: var(--muted);
+  border-color: var(--border);
+  background: var(--bg-soft);
+}
+.conviction-badge.cb-none .cb-meter-fill { background: #bdbbb3; }
+
+.conviction-badge.cb-weak {
+  color: #8a1f17;
+  border-color: #f0c2bd;
+  background: #fde8e6;
+}
+.conviction-badge.cb-weak .cb-meter-fill { background: #c64e4e; }
+
+.conviction-badge.cb-low {
+  color: #7a4414;
+  border-color: #f2d9c0;
+  background: #fcefe0;
+}
+.conviction-badge.cb-low .cb-meter-fill { background: #d18b4a; }
+
+.conviction-badge.cb-mid {
+  color: #5a4c14;
+  border-color: #e6dfc2;
+  background: #f5eed6;
+}
+.conviction-badge.cb-mid .cb-meter-fill { background: #b09a3a; }
+
+.conviction-badge.cb-high {
+  color: #2f5320;
+  border-color: #cfe3c2;
+  background: #eef7e6;
+}
+.conviction-badge.cb-high .cb-meter-fill { background: #6ea544; }
+
+.conviction-badge.cb-iron {
+  color: #1a3a58;
+  border-color: #c2d8ea;
+  background: #e2eef8;
+}
+.conviction-badge.cb-iron .cb-meter-fill {
+  background: linear-gradient(90deg, #4f7ac4, #1a3a58);
+}
+
+@media (max-width: 520px) {
+  .conviction-badge {
+    grid-template-columns: auto 60px auto;
+    gap: 8px;
+    padding: 5px 10px;
+  }
+  .cb-label-text { display: none; }
+}

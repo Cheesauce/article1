@@ -1,0 +1,31 @@
+
+.sync-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  border: 1px solid;
+}
+.sync-banner.warn {
+  background: #fcefe0;
+  border-color: #f2d9c0;
+  color: #7a4414;
+}
+.sync-banner.err {
+  background: #fde8e6;
+  border-color: #f0c2bd;
+  color: #8a1f17;
+}
+.sync-banner strong { font-weight: 700; }
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d18b4a;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(209,139,74,0.18);
+}
