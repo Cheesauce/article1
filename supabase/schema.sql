@@ -97,11 +97,11 @@ create policy posts_owner_write
   for all
   using (
     coalesce(current_setting('request.headers', true)::json ->> 'x-owner-key', '')
-      = 'replace-with-a-long-random-secret'
+      = 'KN21jNKJWNKJ213'
   )
   with check (
     coalesce(current_setting('request.headers', true)::json ->> 'x-owner-key', '')
-      = 'replace-with-a-long-random-secret'
+      = 'KN21jNKJWNKJ213'
   );
 
 -- ─── HEARTS policies ───
